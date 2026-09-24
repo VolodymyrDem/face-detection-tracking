@@ -15,6 +15,7 @@ train:
   cos_lr: true
   close_mosaic: 10           # turn mosaic augmentation off for the last 10 epochs
   fliplr: 0.5
+  max_det: 1000             # WIDER FACE has crowd photos with 800+ faces (default 300 caps recall)
   project: /kaggle/working/runs
   name: yolo26n_wider_face
   exist_ok: true
