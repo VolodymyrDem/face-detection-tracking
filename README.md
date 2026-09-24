@@ -38,7 +38,10 @@ https://developers.google.com/static/mediapipe/images/solutions/examples/face_de
 │   ├── detector.py         # Face detector
 │   ├── tracker.py          # Tracker (detection association across frames)
 │   ├── pipeline.py         # Detection + tracking pipeline
-│   ├── camera.py           # Webcam video capture
+│   ├── camera.py           # Webcam video capture (native resolution, optional mirroring)
+│   ├── config.py           # YAML config loading
+│   ├── grabber.py          # Background thread that reads (and processes) camera frames
+│   ├── window.py           # Qt video window locked to the camera aspect ratio
 │   ├── visualize.py        # Bounding box and label rendering
 │   └── metrics.py          # FPS, mAP, IoU computation
 └── tests/                  # Unit tests
@@ -83,7 +86,10 @@ pip install -r requirements.txt
 python scripts/download_data.py --dataset wider_face
 python scripts/download_data.py --dataset pascal_face
 
-# 4. Run the webcam demo
+# 4. Check the webcam (settings in configs/demo.yaml)
+python scripts/check_camera.py
+
+# 5. Run the webcam demo
 python scripts/run_demo.py --camera 0
 ```
 

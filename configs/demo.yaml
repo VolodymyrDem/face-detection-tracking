@@ -1,0 +1,5 @@
+camera:
+  source: 0      # camera index
+  width: null    # null = use the camera's native resolution
+  height: null
+  mirror: true   # flip the image horizontally (selfie view)
