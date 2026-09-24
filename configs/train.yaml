@@ -1,0 +1,50 @@
+# Face detector training configuration
+
+seed: 42
+
+data:
+  train_dataset: wider_face/train
+  val_dataset: wider_face/val
+  test_dataset: pascal_face
+  root: data/processed
+  image_size: [320, 320]
+  num_workers: 4
+
+model:
+  architecture: ssd_mobilenet_v2
+  pretrained: true
+  num_classes: 1
+
+train:
+  epochs: 60
+  batch_size: 32
+  optimizer: adamw
+  learning_rate: 0.001
+  weight_decay: 0.0005
+  scheduler: cosine
+  warmup_epochs: 3
+
+augmentation:
+  horizontal_flip: 0.5
+  color_jitter: 0.3
+  random_crop: true
+  random_scale: [0.5, 1.5]
+
+inference:
+  score_threshold: 0.5
+  nms_iou_threshold: 0.45
+  max_detections: 100
+
+tracking:
+  iou_threshold: 0.3
+  max_misses: 15
+  detect_every_n_frames: 1
+
+performance:
+  min_required_fps: 20
+  export_onnx: true
+  quantize: int8
+
+output:
+  checkpoint_dir: models
+  log_dir: docs/runs
