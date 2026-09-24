@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
+import urllib.request
 from dataclasses import dataclass
-from typing import Protocol
+from pathlib import Path
+from typing import Any, Protocol
 
+import cv2
 import numpy as np
+
+YUNET_MODEL_PATH = "models/face_detection_yunet_2023mar.onnx"
+YUNET_MODEL_URL = (
+    "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/"
+    "face_detection_yunet_2023mar.onnx"
+)
 
 
 @dataclass(frozen=True)
@@ -30,25 +39,82 @@ class FaceDetector(Protocol):
         ...
 
 
-class MediaPipeFaceDetector:
-    """Baseline detector built on MediaPipe Face Detector."""
+def ensure_model(path: str | Path, url: str) -> Path:
+    """Download the model file on first use."""
+    path = Path(path)
+    if not path.is_file():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        partial = path.with_suffix(path.suffix + ".part")
+        print(f"Downloading {url} -> {path}")
+        urllib.request.urlretrieve(url, partial)
+        partial.rename(path)
+    return path
 
-    def __init__(self, min_confidence: float = 0.5, model_selection: int = 0) -> None:
-        self.min_confidence = min_confidence
-        self.model_selection = model_selection
-        raise NotImplementedError("TODO: initialize mediapipe.solutions.face_detection")
+
+def clip_detection(
+    x: float, y: float, width: float, height: float, score: float, frame_width: int, frame_height: int
+) -> Detection | None:
+    """Clip a box to the frame; None if nothing of it is left inside."""
+    x1, y1 = max(0, round(x)), max(0, round(y))
+    x2, y2 = min(frame_width, round(x + width)), min(frame_height, round(y + height))
+    if x2 <= x1 or y2 <= y1:
+        return None
+    return Detection(x1, y1, x2 - x1, y2 - y1, float(score))
+
+
+class YuNetFaceDetector:
+    """Stand-in detector: OpenCV YuNet, pretrained on WIDER FACE.
+
+    Used to build the app until our own model is trained, and as the baseline to
+    compare against. Frames wider than ``input_width`` are downscaled before
+    detection (much faster) and the boxes are scaled back to the original frame.
+    """
+
+    def __init__(
+        self,
+        model_path: str | Path = YUNET_MODEL_PATH,
+        min_confidence: float = 0.6,
+        nms_threshold: float = 0.3,
+        input_width: int = 640,
+    ) -> None:
+        path = ensure_model(model_path, YUNET_MODEL_URL)
+        self.input_width = input_width
+        self._input_size: tuple[int, int] | None = None
+        self._model = cv2.FaceDetectorYN.create(
+            str(path), "", (320, 320), min_confidence, nms_threshold, 5000
+        )
 
     def detect(self, frame: np.ndarray) -> list[Detection]:
-        raise NotImplementedError("TODO: run the frame through MediaPipe and collect Detection objects")
+        frame_height, frame_width = frame.shape[:2]
+        scale = min(1.0, self.input_width / frame_width)
+        if scale < 1.0:
+            size = (round(frame_width * scale), round(frame_height * scale))
+            image = cv2.resize(frame, size, interpolation=cv2.INTER_AREA)
+        else:
+            size = (frame_width, frame_height)
+            image = frame
+
+        if self._input_size != size:
+            self._model.setInputSize(size)
+            self._input_size = size
+
+        _, faces = self._model.detect(image)
+        if faces is None:
+            return []
+
+        detections = []
+        for row in faces:
+            x, y, width, height = (float(v) / scale for v in row[:4])
+            detection = clip_detection(x, y, width, height, row[-1], frame_width, frame_height)
+            if detection is not None:
+                detections.append(detection)
+        return detections
 
 
-class OnnxFaceDetector:
-    """Custom trained model exported to ONNX for fast inference."""
-
-    def __init__(self, model_path: str, input_size: tuple[int, int] = (320, 320)) -> None:
-        self.model_path = model_path
-        self.input_size = input_size
-        raise NotImplementedError("TODO: load the model via onnxruntime.InferenceSession")
-
-    def detect(self, frame: np.ndarray) -> list[Detection]:
-        raise NotImplementedError("TODO: preprocess, run inference, apply NMS, postprocess")
+def create_detector(config: dict[str, Any]) -> FaceDetector:
+    """Build a detector from the ``detector`` section of a config."""
+    settings = dict(config)
+    kind = settings.pop("type", "yunet")
+    if kind == "yunet":
+        return YuNetFaceDetector(**settings)
+    raise ValueError(f"Unknown detector type: {kind!r}")

@@ -1,36 +1,40 @@
-"""Demo application: display the webcam feed with bounding boxes around faces.
+"""Demo application: webcam feed with a box, ID and score around every face, plus FPS.
 
-Example:
-    python scripts/run_demo.py --camera 0 --detector mediapipe
+Run from the project root:
+    python scripts/run_demo.py
+    python scripts/run_demo.py --config configs/demo.yaml
 """
 
 from __future__ import annotations
 
 import argparse
 
+from face_tracker.camera import Camera
+from face_tracker.config import load_config
+from face_tracker.detector import create_detector
+from face_tracker.pipeline import FaceTrackingPipeline
+from face_tracker.tracker import IouTracker
+from face_tracker.window import run_video_app
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Face detection & tracking demo")
-    parser.add_argument("--camera", type=int, default=0, help="Webcam index")
-    parser.add_argument(
-        "--detector",
-        choices=["mediapipe", "onnx"],
-        default="mediapipe",
-        help="Which detector implementation to use",
-    )
-    parser.add_argument("--model", type=str, default="models/face_detector.onnx")
-    parser.add_argument("--width", type=int, default=640)
-    parser.add_argument("--height", type=int, default=480)
-    parser.add_argument("--min-confidence", type=float, default=0.5)
-    parser.add_argument("--show-fps", action="store_true", default=True)
+    parser.add_argument("--config", default="configs/demo.yaml")
     return parser.parse_args()
 
 
 def main() -> None:
-    args = parse_args()
-    raise NotImplementedError(
-        "TODO: wire up Camera + FaceTrackingPipeline + draw_tracks and show a cv2.imshow window"
+    config = load_config(parse_args().config)
+    tracking = dict(config.get("tracking", {}))
+    detect_every = tracking.pop("detect_every_n_frames", 1)
+
+    pipeline = FaceTrackingPipeline(
+        create_detector(config.get("detector", {})),
+        IouTracker(**tracking),
+        detect_every_n_frames=detect_every,
     )
+    camera = Camera(**config.get("camera", {}))
+    run_video_app(camera, "Face tracking (q / Esc to quit)", process=pipeline.annotate)
 
 
 if __name__ == "__main__":

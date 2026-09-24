@@ -35,7 +35,7 @@ https://developers.google.com/static/mediapipe/images/solutions/examples/face_de
 ├── notebooks/              # Research notebooks (EDA, visualization)
 ├── scripts/                # CLI scripts: data download, training, evaluation
 ├── src/face_tracker/       # Main package
-│   ├── detector.py         # Face detector
+│   ├── detector.py         # Face detectors (YuNet baseline; our trained model later)
 │   ├── tracker.py          # Tracker (detection association across frames)
 │   ├── pipeline.py         # Detection + tracking pipeline
 │   ├── camera.py           # Webcam video capture (native resolution, optional mirroring)
@@ -43,14 +43,15 @@ https://developers.google.com/static/mediapipe/images/solutions/examples/face_de
 │   ├── grabber.py          # Background thread that reads (and processes) camera frames
 │   ├── window.py           # Qt video window locked to the camera aspect ratio
 │   ├── visualize.py        # Bounding box and label rendering
-│   └── metrics.py          # FPS, mAP, IoU computation
+│   ├── metrics.py          # FPS, mAP, IoU computation
+│   └── wider_face.py       # WIDER FACE -> YOLO label conversion
 └── tests/                  # Unit tests
 ```
 
 ## Roadmap
 
 1. **Data** — download and convert WIDER FACE / PASCAL Face into a unified annotation format.
-2. **Baseline** — baseline detector (MediaPipe / SSD / YOLO-face) to measure the accuracy and speed ceiling.
+2. **Baseline** — pretrained OpenCV YuNet detector as a stand-in to build the app and as a reference point for accuracy and speed.
 3. **Training** — train a custom model on WIDER FACE train, validate on WIDER FACE val, test on PASCAL Face.
 4. **Tracking** — add cross-frame detection association (IoU tracker / SORT) for stable IDs.
 5. **Demo app** — render the webcam feed with real-time bounding boxes around faces.
@@ -82,15 +83,43 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Download the datasets
-python scripts/download_data.py --dataset wider_face
-python scripts/download_data.py --dataset pascal_face
-
-# 4. Check the webcam (settings in configs/demo.yaml)
+# 3. Check the webcam (settings in configs/demo.yaml)
 python scripts/check_camera.py
 
-# 5. Run the webcam demo
-python scripts/run_demo.py --camera 0
+# 4. Run the webcam demo: boxes, face IDs and FPS (settings in configs/demo.yaml;
+#    the YuNet model is downloaded to models/ on the first run)
+python scripts/run_demo.py
+```
+
+## Training (Colab or Kaggle)
+
+The detector is trained in the cloud on a free T4 GPU; only the resulting weights
+(`best.pt`, ~6 MB) are brought back to the laptop.
+
+**Google Colab** — [`notebooks/train_colab.ipynb`](notebooks/train_colab.ipynb):
+
+1. Open the notebook in Colab (**File → Upload notebook** or **Open from GitHub**), select a `T4 GPU` runtime.
+2. Private repo: add a `GITHUB_TOKEN` secret (🔑 in the sidebar) with notebook access.
+3. **Run all** with `SMOKE_TEST = True`, then set it to `False` and **Run all** again.
+   WIDER FACE is downloaded from Hugging Face; results go to Google Drive
+   (`MyDrive/face-detection-tracking/runs`). After a disconnect, **Run all** resumes from `last.pt`.
+4. Download `best.pt` from Drive into `models/`.
+
+**Kaggle** — [`notebooks/train_kaggle.ipynb`](notebooks/train_kaggle.ipynb) (needs a phone-verified account):
+
+1. Import the notebook, attach the dataset `mksaad/wider-face-a-face-detection-benchmark`,
+   enable `GPU T4 x2` and Internet.
+2. Run with `SMOKE_TEST = True`, then set it to `False` and **Save Version → Save & Run All**.
+3. Download `best.pt` from the notebook output into `models/`.
+
+The notebook runs these scripts, which also work locally:
+
+```bash
+# WIDER FACE -> YOLO labels (images are symlinked, not copied)
+python scripts/prepare_wider_face.py --root data/raw/wider_face --output data/processed/wider_yolo
+
+# Train (settings in configs/train.yaml; --set overrides any of them)
+python scripts/train.py --config configs/train.yaml --set data=data/processed/wider_yolo/data.yaml
 ```
 
 ## License

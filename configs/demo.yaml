@@ -3,3 +3,16 @@ camera:
   width: null    # null = use the camera's native resolution
   height: null
   mirror: true   # flip the image horizontally (selfie view)
+
+detector:
+  type: yunet                                    # pretrained OpenCV YuNet (stand-in until our model is trained)
+  model_path: models/face_detection_yunet_2023mar.onnx   # downloaded automatically on first run
+  min_confidence: 0.6                            # ignore detections below this score
+  input_width: 640                               # frames are downscaled to this width before detection
+
+tracking:
+  iou_threshold: 0.3        # min box overlap to treat a detection as the same face
+  max_misses: 15            # frames a face may be missed before its ID is dropped
+  keep_visible: 3           # frames a missed face's box is still drawn (prevents flicker)
+  smoothing: 0.4            # 0 = raw boxes, closer to 1 = smoother but laggier
+  detect_every_n_frames: 1  # run the detector on every N-th frame

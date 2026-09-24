@@ -1,50 +1,23 @@
-# Face detector training configuration
+# Face detector training (ultralytics YOLO) on WIDER FACE.
+# Every key under `train` is passed to ultralytics `model.train(...)`:
+# https://docs.ultralytics.com/modes/train/#train-settings
 
-seed: 42
-
-data:
-  train_dataset: wider_face/train
-  val_dataset: wider_face/val
-  test_dataset: pascal_face
-  root: data/processed
-  image_size: [320, 320]
-  num_workers: 4
-
-model:
-  architecture: ssd_mobilenet_v2
-  pretrained: true
-  num_classes: 1
+model: yolo26n.pt            # COCO-pretrained starting weights, downloaded automatically
 
 train:
-  epochs: 60
-  batch_size: 32
-  optimizer: adamw
-  learning_rate: 0.001
-  weight_decay: 0.0005
-  scheduler: cosine
-  warmup_epochs: 3
-
-augmentation:
-  horizontal_flip: 0.5
-  color_jitter: 0.3
-  random_crop: true
-  random_scale: [0.5, 1.5]
-
-inference:
-  score_threshold: 0.5
-  nms_iou_threshold: 0.45
-  max_detections: 100
-
-tracking:
-  iou_threshold: 0.3
-  max_misses: 15
-  detect_every_n_frames: 1
-
-performance:
-  min_required_fps: 20
-  export_onnx: true
-  quantize: int8
-
-output:
-  checkpoint_dir: models
-  log_dir: docs/runs
+  data: /tmp/wider_yolo/data.yaml   # written by scripts/prepare_wider_face.py (not saved to output)
+  epochs: 100
+  patience: 20               # stop early if val mAP does not improve for 20 epochs
+  imgsz: 640                 # WIDER FACE has many tiny faces, so train at full 640
+  batch: 32
+  workers: 4                 # Kaggle notebooks have 4 CPU cores
+  optimizer: auto
+  cos_lr: true
+  close_mosaic: 10           # turn mosaic augmentation off for the last 10 epochs
+  fliplr: 0.5
+  project: /kaggle/working/runs
+  name: yolo26n_wider_face
+  exist_ok: true
+  save_period: 5             # also keep a checkpoint every 5 epochs
+  plots: true
+  seed: 42
